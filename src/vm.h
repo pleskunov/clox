@@ -28,7 +28,7 @@ void initVM(void);
 void freeVM(void);
 
 /* Interpret the bytecode. */
-InterpretResult interpret(Chunk *chunk);
+InterpretResult interpret(const char *source);
 
 
 void push(Value value);

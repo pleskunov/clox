@@ -32,6 +32,25 @@ target_sources(vm_chunk
   )
 target_link_libraries(vm_chunk PRIVATE vm_memory vm_value)
 
+add_library(scanner)
+target_sources(scanner
+  PUBLIC
+    src/common.h
+    src/scanner.h
+  PRIVATE
+    src/scanner.c
+  )
+
+add_library(compiler)
+target_sources(compiler
+  PUBLIC
+    src/common.h
+    src/compiler.h
+  PRIVATE
+    src/compiler.c
+  )
+target_link_libraries(compiler PRIVATE scanner)
+
 add_library(vm_debug)
 target_sources(vm_debug
   PUBLIC
@@ -55,4 +74,4 @@ target_sources(bcvm
   PRIVATE
     src/main.c
   )
-target_link_libraries(bcvm PRIVATE vm_core vm_chunk vm_debug)
+target_link_libraries(bcvm PRIVATE vm_core vm_chunk vm_debug compiler)
