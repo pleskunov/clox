@@ -1,6 +1,9 @@
 #ifndef clox_compiler_h
 #define clox_compiler_h
 
-void compile(const char *source);
+#include "vm.h"
 
-#endif // !DEBUG
+/* Parse a source code and output a compiled bytecode instructions to the chunk. */
+bool compile(const char *source, Chunk *chunk);
+
+#endif

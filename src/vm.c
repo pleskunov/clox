@@ -89,8 +89,25 @@ static InterpretResult run(void) {
 }
 
 InterpretResult interpret(const char *source) {
-  compile(source);
-  return INTERPRET_OK;
+  /* Create a new chunk to store compiled bytecode and initialize it. */
+  Chunk chunk;
+  initChunk(&chunk);
+
+  /* Attempt to compile the source code. If an error is encountered at
+  compilation time (compile() -> false), discard unusable chunk, then return
+  the corresponding error. */
+  if(!compile(source, &chunk)) {
+    freeChunk(&chunk);
+    return INTERPRET_COMPILE_ERROR;
+  }
+
+  /* Send the completed chunk over to the VM to be executed. */
+  vm.chunk = &chunk;
+  vm.ip = vm.chunk->code;
+  InterpretResult rc = run();
+
+  freeChunk(&chunk);
+  return rc;
 }
 
 void push(Value value) {
