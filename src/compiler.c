@@ -5,6 +5,8 @@
 void compile(const char *source) {
   initScanner(source);
 
+  /* A token at a time, thanks to a single token of lookahead by clox grammar. */
+
   // temporary tests
   int line = 1;
   for (;;) {
@@ -16,7 +18,7 @@ void compile(const char *source) {
     else {
       printf("   | ");
     }
-    /* we need to limit the langth of printed string as the lexeme points into
+    /* we need to limit the length of printed string as the lexeme points into
     original source string doesn't have NULL terminator, so we pass the precision as
     an argument.
     */

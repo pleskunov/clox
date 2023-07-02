@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-/* An abstraction layer how constants are represented. */
+/* An abstraction layer over how constants are represented. */
 typedef double Value;
 
 typedef struct {

@@ -9,7 +9,7 @@ void initChunk(Chunk *chunk) {
   chunk->entries = 0;
   chunk->code = NULL;
   chunk->lines = NULL;
-  initValueArray(&chunk->constants);
+  initValueArray(&chunk->constants); // initilize a constant pool associated with the chunk
 }
 
 void writeChunk(Chunk *chunk, uint8_t byte, int line) {
@@ -18,12 +18,14 @@ void writeChunk(Chunk *chunk, uint8_t byte, int line) {
     int oldCapacity = chunk->capacity;
     chunk->capacity = GROW_CAPACITY(oldCapacity);
 
-    // Reallocate memory, line numbers array must grow in parallel to the bytecode array
+    /* Reallocate memory, line numbers array must grow in parallel to the bytecode array
+    If code -> NULL, then NULL is passed down to realloc() in memory module to control its operation mode
+    */
     chunk->code = GROW_ARRAY(uint8_t, chunk->code, oldCapacity, chunk->capacity);
     chunk->lines = GROW_ARRAY(int, chunk->lines, oldCapacity, chunk->capacity);
   }
 
-  // Write bytecode and the corresponding line number, update entries counter
+  // Write bytecode instruction and the corresponding line number, update entries counter
   chunk->code[chunk->entries] = byte;
   chunk->lines[chunk->entries] = line;
   chunk->entries++;
@@ -41,5 +43,5 @@ void freeChunk(Chunk *chunk) {
 
 int addConstant(Chunk *chunk, Value value) {
   writeValueArray(&chunk->constants, value);
-  return chunk->constants.entries - 1;
+  return chunk->constants.entries - 1; // return an index of previously added constant
 }

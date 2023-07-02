@@ -11,7 +11,7 @@ VM vm;
 
 /* Helpers */
 static void resetStack(void) {
-  // point to the beginning of the array to indicate that stack is empty
+  // Set a pointer to the beginning of the array, to indicate that the stack is empty
   vm.stackTop = vm.stack;
 }
 
@@ -27,9 +27,9 @@ static InterpretResult run(void) {
 
 // Macro to read the bytecode pointed by IP
 #define READ_BYTE() (*vm.ip++)
-// Macro to read the instruction at given offset
+// Macro to read a constant from the next byte after bytecode
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
-// Marco to handle binary operations
+// Marco to handle operations that use binary operators
 #define BINARY_OP(operator) \
   do { \
     double rhs_operand = pop(); \
@@ -39,7 +39,7 @@ static InterpretResult run(void) {
 
   for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
-    // Tracing stack content routine
+    // Tracing stack content subroutine
     printf("          ");
     for (Value *slot = vm.stack; slot < vm.stackTop; slot++) {
       printf("[ ");
@@ -73,7 +73,7 @@ static InterpretResult run(void) {
         BINARY_OP(/);
         break;
       case OP_NEGATE:
-        push(-pop());
+        push(-pop()); // this increments/decrements the stack pointer unnecessary
         break;
       case OP_RETURN: {
         printValue(pop());

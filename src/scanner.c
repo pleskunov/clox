@@ -3,17 +3,17 @@
 #include <string.h>
 
 typedef struct Scanner_ {
-  const char *start;    // lexeme being scanned
-  const char *current;  // a character currently scanned
-  int line;             // current lexeme position in source
+  const char *start;      // a lexeme being scanned
+  const char *current;    // a character being scanned
+  int line;
 } Scanner;
 
 Scanner scanner;
 
 void initScanner(const char *source) {
   scanner.start = source;     // <- 1st lexeme
-  scanner.current = source;   // <- 1st char of 1 lexeme
-  scanner.line = 1;
+  scanner.current = source;   // <- 1st char of 1st lexeme
+  scanner.line = 1;           // <- 1st line in source code
 }
 
 static bool isAlpha(char c) {
@@ -25,44 +25,43 @@ static bool isDigit(char c) {
 }
 
 static bool isAtEnd() {
+  // If the current character is the null byte, then we’ve reached the end.
   return *scanner.current == '\0';
 }
 
 static char advance() {
-  // update pointer and return the consumed character
+  // Update a pointer position to the next character in the source, then return "consumed" character.
   scanner.current++;
   return scanner.current[-1];
 }
 
 static char peek() {
-  // simply return, do not consume
+  // Simply return the character, not consuming it.
   return *scanner.current;
 }
 
 static char peekNext() {
   if (isAtEnd()) {
-    // return NULL terminator if we reached EOL
     return '\0';
   }
+  // Return one character past the current one.
   return scanner.current[1];
 }
 
 static bool match(char expected) {
+  // If EOF is reached or there is no character match, return false.
   if (isAtEnd()) {
-    // check if EOF is reached, nothing to do in that case
     return false;
   }
-
-  // expected character not found, leaving
   if (*scanner.current != expected) {
     return false;
   }
-
-  // expected character match, consume and return corresponding token
+  // If the character matches what we expect, consume it and return true.
   scanner.current++;
   return true;
 }
 
+/* A constructor function to assemble a new token. */
 static Token makeToken(TokenType type) {
   Token token;
   token.type = type;
@@ -72,6 +71,7 @@ static Token makeToken(TokenType type) {
   return token;
 }
 
+/* A constructor function to assemble an error token. */
 static Token errorToken(const char *message) {
   Token token;
   token.type = TOKEN_ERROR;
@@ -82,9 +82,11 @@ static Token errorToken(const char *message) {
 }
 
 static void skipWhitespace() {
-  // look for any matching, advance scanner past any leading whitespace
+  // Get rid of any spaces, tabs and newlines - they are not part of lexeme.
+  // Look for any matches, advance scanner past any leading whitespace.
   for (;;) {
     char c = peek();
+
     switch (c) {
       case ' ':
       case '\r':
@@ -92,13 +94,15 @@ static void skipWhitespace() {
         advance();
         break;
       case '\n':
-        // consume NLs and update line counter accordingly
+        // Consume new lines and update the line counter.
         scanner.line++; 
         advance();
         break;
-      // check for next char to detect commented lines
+      /* Comments are not, technically, whitespaces, but for the compiler they are,
+      so check for any forward slashes to detect commented lines and consume them. */
       case '/':
         if (peekNext() == '/') {
+          // Continue untill EOL is reached.
           while (peek() != '\n' && !isAtEnd()) {
             advance();
           }
@@ -175,9 +179,9 @@ static Token number() {
   while (isDigit(peek())) {
     advance();
 
-    // Look for a fractional part
+    // Look for a fractional part of the number being scanned.
     if (peek() == '.' && isDigit(peekNext())) {
-      // Consume "."
+      // Consume ".", then keep scanning.
       advance();
 
       while (isDigit(peek())) {
@@ -200,19 +204,17 @@ static Token string() {
     return errorToken("Unterminated string");
   }
 
-  // Keep consuming up the closing quote
+  // Consume characters until the closing quote is reached.
   advance();
   return makeToken(TOKEN_STRING);
 }
 
-
-
 Token scanToken() {
-
-  // get rid of spaces, tabs and newlines - they are not part of lexeme
   skipWhitespace();
-
-  scanner.start = scanner.current;
+  /* Because scanToken() is always called to scan a complete token,
+  we set scanner.start to point to a current character, so we "remember" 
+  where the lexeme we’re about to scan begins. */
+  scanner.start = scanner.current; 
 
   if (isAtEnd()) {
     return makeToken(TOKEN_EOF);
@@ -223,7 +225,6 @@ Token scanToken() {
   if (isAlpha(c)) {
     return identifier();
   }
-
   if (isDigit(c)) {
     return number();
   }
@@ -240,18 +241,10 @@ Token scanToken() {
     case '+': return makeToken(TOKEN_PLUS);
     case '/': return makeToken(TOKEN_SLASH);
     case '*': return makeToken(TOKEN_STAR);
-    case '!':
-      return makeToken(
-        match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
-    case '=':
-      return makeToken(
-        match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
-    case '<':
-      return makeToken(
-        match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
-    case '>':
-      return makeToken(
-        match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
+    case '!': return makeToken(match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
+    case '=': return makeToken(match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
+    case '<': return makeToken(match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
+    case '>': return makeToken(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
     case '"': return string();
   }
 

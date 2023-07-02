@@ -10,7 +10,7 @@
 
 typedef struct {
   Chunk *chunk;
-  uint8_t *ip;            // instruction pointer
+  uint8_t *ip;            // Instruction pointer
   Value stack[STACK_MAX];
   Value *stackTop;        // -> just past the element containing the top value
 } VM;
@@ -21,15 +21,11 @@ typedef enum {
   INTERPRET_RUNTIME_ERROR
 } InterpretResult;
 
-/* Create a new VM instance. */
 void initVM(void);
 
-/* Destroy the VM instance. */
 void freeVM(void);
 
-/* Interpret the bytecode. */
 InterpretResult interpret(const char *source);
-
 
 void push(Value value);
 

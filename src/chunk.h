@@ -16,8 +16,8 @@ typedef enum {
 
 /* Bytecode instructions struct. */
 typedef struct {
-  int         capacity;
-  int         entries;
+  int         capacity;     // dynamic array capacity
+  int         entries;      // number of values actually stored in dynamic array
   uint8_t     *code;        // -> array of opcodes
   int         *lines;       // -> array of line numbers
   ValueArray  constants;    // -> struct to handle constants

@@ -8,11 +8,11 @@
 
 #define REPL_BUFFER_LENGTH 1024
 
+/* Helpers with internal linkage, accessible only
+within the current translation unit. */
 static void repl();
 static void *readFile(const char *path);
 static void runFile(const char *path);
-
-// CURRENT 15.2
 
 int main(int argc, char *argv[]) {
 
@@ -44,7 +44,7 @@ static void repl() {
       break;
     }
 
-    interpret(line);
+    interpret(line); // -> scan-compile-execute pipeline entrypoint
   }
 }
 
@@ -80,8 +80,8 @@ static void *readFile(const char *path) {
 
 static void runFile(const char *path) {
   char *source = readFile(path);
-  InterpretResult result = interpret(source);
-  free(source);
+  InterpretResult result = interpret(source); // Make sure the source outlives the tokens
+  free(source); // readFile() passes the ownership, we should take care of that memory block
 
   if (result == INTERPRET_COMPILE_ERROR) {
     exit(65);
