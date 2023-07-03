@@ -178,17 +178,18 @@ static Token identifier() {
 static Token number() {
   while (isDigit(peek())) {
     advance();
+  }
 
-    // Look for a fractional part of the number being scanned.
-    if (peek() == '.' && isDigit(peekNext())) {
-      // Consume ".", then keep scanning.
+  // Look for a fractional part of the number being scanned.
+  if (peek() == '.' && isDigit(peekNext())) {
+    // Consume ".", then keep scanning.
+    advance();
+
+    while (isDigit(peek())) {
       advance();
-
-      while (isDigit(peek())) {
-        advance();
-      }
     }
   }
+
   return makeToken(TOKEN_NUMBER);
 }
 
