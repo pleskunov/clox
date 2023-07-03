@@ -31,6 +31,16 @@ void freeValueArray(ValueArray *array) {
 }
 
 void printValue(Value value) {
-  // 6 digit precision, strip trailing zeroes from the fractional part
-  printf("%g", value);
+  switch (value.type) {
+    case VAL_BOOL:
+      printf(AS_BOOL(value) ? "true" : "false");
+      break;
+    case VAL_NIL: 
+      printf("nil"); 
+      break;
+    case VAL_NUMBER: 
+      // 6 digit precision, strip trailing zeroes from the fractional part
+      printf("%g", AS_NUMBER(value)); 
+      break;
+  }
 }
