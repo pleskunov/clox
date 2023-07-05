@@ -1,67 +1,65 @@
 #include "common.h"
 #include "scanner.h"
-#include <string.h>
 
+/* A scanner instance structure. The start pointer marks the beginning of the
+current lexeme being scanned, and current points to the current character being
+looked at. A line field is used to track what line the current lexeme is on. */
 typedef struct Scanner_ {
-  const char *start;      // a lexeme being scanned
-  const char *current;    // a character being scanned
+  const char *start;
+  const char *current;
   int line;
 } Scanner;
 
 Scanner scanner;
 
 void initScanner(const char *source) {
-  scanner.start = source;     // <- 1st lexeme
-  scanner.current = source;   // <- 1st char of 1st lexeme
-  scanner.line = 1;           // <- 1st line in source code
+  scanner.start = source;
+  scanner.current = source;
+  scanner.line = 1;
 }
 
+/* Returns true if a given character belongs to alhabetical range; otherwise false. */
 static bool isAlpha(char c) {
-  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+  return  (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
+/* Returns true if a given character belongs to numerical rangle; otherwise false. */
 static bool isDigit(char c) {
   return c >= '0' && c <= '9';
 }
 
+/* Returns true if the current character is a null terminator; otherwise - false. */
 static bool isAtEnd() {
-  // If the current character is the null byte, then we’ve reached the end.
   return *scanner.current == '\0';
 }
 
+/* Updates scanner register to the next character in a source stream, 
+then return the character which is "consumed". */
 static char advance() {
-  // Update a pointer position to the next character in the source, then return "consumed" character.
   scanner.current++;
   return scanner.current[-1];
 }
 
+/* Return the currently scanned character, do not update the scanner register. */
 static char peek() {
-  // Simply return the character, not consuming it.
   return *scanner.current;
 }
-
+/* Return a character past the current one, do not update the scanner register. */
 static char peekNext() {
-  if (isAtEnd()) {
-    return '\0';
-  }
-  // Return one character past the current one.
+  if (isAtEnd()) { return '\0'; }
   return scanner.current[1];
 }
 
+/* Check if a given character matches the currently scanned character.
+This helper also updates the Scanner register to the next character. */
 static bool match(char expected) {
-  // If EOF is reached or there is no character match, return false.
-  if (isAtEnd()) {
-    return false;
-  }
-  if (*scanner.current != expected) {
-    return false;
-  }
-  // If the character matches what we expect, consume it and return true.
+  if (isAtEnd()) { return false; }
+  if (*scanner.current != expected) { return false; }
   scanner.current++;
   return true;
 }
 
-/* A constructor function to assemble a new token. */
+/* A constructor functions to assemble normal and error tokens. */
 static Token makeToken(TokenType type) {
   Token token;
   token.type = type;
@@ -71,7 +69,6 @@ static Token makeToken(TokenType type) {
   return token;
 }
 
-/* A constructor function to assemble an error token. */
 static Token errorToken(const char *message) {
   Token token;
   token.type = TOKEN_ERROR;
@@ -81,12 +78,11 @@ static Token errorToken(const char *message) {
   return token;
 }
 
+/* Get rid of any spaces, tabs and newlines in the source code stream. */
 static void skipWhitespace() {
-  // Get rid of any spaces, tabs and newlines - they are not part of lexeme.
   // Look for any matches, advance scanner past any leading whitespace.
   for (;;) {
     char c = peek();
-
     switch (c) {
       case ' ':
       case '\r':
@@ -94,20 +90,15 @@ static void skipWhitespace() {
         advance();
         break;
       case '\n':
-        // Consume new lines and update the line counter.
-        scanner.line++; 
+        // Consume new line characters, update the scanner register.
+        scanner.line++;
         advance();
         break;
-      /* Comments are not, technically, whitespaces, but for the compiler they are,
-      so check for any forward slashes to detect commented lines and consume them. */
       case '/':
         if (peekNext() == '/') {
           // Continue untill EOL is reached.
-          while (peek() != '\n' && !isAtEnd()) {
-            advance();
-          }
-        }
-        else {
+          while (peek() != '\n' && !isAtEnd()) { advance(); }
+        } else {
           return;
         }
         break;
@@ -117,18 +108,18 @@ static void skipWhitespace() {
   }
 }
 
+/* Check for potential token match with keywords pool. Returns a given keyword token type upon match;
+otherwise returns a type for variable. */
 static TokenType checkKeyword(int start, int length, const char *rest, TokenType type) {
-  if (scanner.current - scanner.start == start + length && \
-    memcmp(scanner.start + start, rest, length) == 0) 
-  {
+  // The lexeme must be exactly as long as the keyword AND the n of the following characters must match exactly.
+  if (scanner.current - scanner.start == start + length && memcmp(scanner.start + start, rest, length) == 0) {
     return type;
   }
-
   return TOKEN_IDENTIFIER;
 }
 
+/* Check for matches between identifiers and reserved keywords. */
 static TokenType identifierType() {
-
   switch (scanner.start[0]) {
     case 'a': return checkKeyword(1, 2, "nd", TOKEN_AND);
     case 'c': return checkKeyword(1, 4, "lass", TOKEN_CLASS);
@@ -136,12 +127,9 @@ static TokenType identifierType() {
     case 'f':
       if (scanner.current - scanner.start > 1) {
         switch (scanner.start[1]) {
-          case 'a': 
-            return checkKeyword(2, 3, "lse", TOKEN_FALSE);
-          case 'o':
-            return checkKeyword(2, 1, "r", TOKEN_FOR);
-          case 'u':
-            return checkKeyword(2, 1, "n", TOKEN_FUN);
+          case 'a': return checkKeyword(2, 3, "lse", TOKEN_FALSE);
+          case 'o': return checkKeyword(2, 1, "r", TOKEN_FOR);
+          case 'u': return checkKeyword(2, 1, "n", TOKEN_FUN);
         }
       }
       break;
@@ -154,81 +142,59 @@ static TokenType identifierType() {
     case 't':
       if (scanner.current - scanner.start > 1) {
         switch (scanner.start[1]) {
-          case 'h':
-            return checkKeyword(2, 2, "is", TOKEN_THIS);
-          case 'r':
-            return checkKeyword(2, 2, "ue", TOKEN_TRUE);
+          case 'h': return checkKeyword(2, 2, "is", TOKEN_THIS);
+          case 'r': return checkKeyword(2, 2, "ue", TOKEN_TRUE);
         }
       }
       break;
     case 'v': return checkKeyword(1, 2, "ar", TOKEN_VAR);
     case 'w': return checkKeyword(1, 4, "hile", TOKEN_WHILE);
   }
-
   return TOKEN_IDENTIFIER;
 }
 
+/* A constructor function wrapper to handle keywords. */
 static Token identifier() {
-  while (isAlpha(peek())|| isDigit(peek())) {
-    advance();
-  }
+  while (isAlpha(peek()) || isDigit(peek())) { advance(); }
   return makeToken(identifierType());
 }
 
+/* A constructor function wrapper to handle numerical tokens. */
 static Token number() {
-  while (isDigit(peek())) {
-    advance();
-  }
-
-  // Look for a fractional part of the number being scanned.
+  while (isDigit(peek())) { advance(); }
+  // Look for a fractional part.
   if (peek() == '.' && isDigit(peekNext())) {
-    // Consume ".", then keep scanning.
+    // Consume ".".
     advance();
 
-    while (isDigit(peek())) {
-      advance();
-    }
+    while (isDigit(peek())) { advance(); }
   }
-
   return makeToken(TOKEN_NUMBER);
 }
 
+/* A constructor function wrapper to handle strings. */
 static Token string() {
+  // Consume characters until we reach the closing quote.
   while (peek() != '"' && !isAtEnd()) {
-    if (peek() != '\n') {
-      scanner.line++;
-    }
+    if (peek() != '\n') { scanner.line++; }
     advance();
   }
 
-  if (isAtEnd()) {
-    return errorToken("Unterminated string");
-  }
+  if (isAtEnd()) { return errorToken("Unterminated string"); }
 
-  // Consume characters until the closing quote is reached.
   advance();
   return makeToken(TOKEN_STRING);
 }
 
 Token scanToken() {
   skipWhitespace();
-  /* Because scanToken() is always called to scan a complete token,
-  we set scanner.start to point to a current character, so we "remember" 
-  where the lexeme we’re about to scan begins. */
-  scanner.start = scanner.current; 
+  scanner.start = scanner.current;
 
-  if (isAtEnd()) {
-    return makeToken(TOKEN_EOF);
-  }
-
+  if (isAtEnd()) { return makeToken(TOKEN_EOF); }
   char c = advance();
 
-  if (isAlpha(c)) {
-    return identifier();
-  }
-  if (isDigit(c)) {
-    return number();
-  }
+  if (isAlpha(c)) { return identifier(); }
+  if (isDigit(c)) { return number(); }
 
   switch(c) {
     case '(': return makeToken(TOKEN_LEFT_PAREN);
@@ -248,6 +214,5 @@ Token scanToken() {
     case '>': return makeToken(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
     case '"': return string();
   }
-
   return errorToken("Unexpected character.");
 }

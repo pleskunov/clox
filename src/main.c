@@ -1,37 +1,29 @@
+/* A personal build of clox that follows the book Crafting Interpreters by Robert Nystrom.
+This build is exeprimental by far and can deviate from the original implementation, causing
+incompatibilities, bugs and broken functionality.
+
+Build requirement:
+1. cmake, at least 3.22 (3.26 is recommended)
+2. build-essential (if you use debian or its derivatives) or base-devel (if you are on arch-based system)
+
+Adjust the cmake version to that of locally installed.
+*/
+
 #include "common.h"
 #include "chunk.h"
 #include "debug.h"
 #include "vm.h"
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 #define REPL_BUFFER_LENGTH 1024
 
-/* Helpers with internal linkage, accessible only
-within the current translation unit. */
+static void ioOperationError(const char *message, const char *path);
 static void repl();
 static void *readFile(const char *path);
 static void runFile(const char *path);
 
-int main(int argc, char *argv[]) {
-
-  initVM();
-
-  if (argc == 1) {
-    repl();
-  }
-  else if (argc == 2) {
-    runFile(argv[1]);
-  }
-  else {
-    fprintf(stderr, "Usage: clox [path]\n");
-    exit(64);
-  }
-
-  freeVM();
-
-  return 0;
+static void ioOperationError(const char *message, const char *path) {
+  fprintf(stderr, message, path);
+  exit(74);
 }
 
 static void repl() {
@@ -43,35 +35,30 @@ static void repl() {
       printf("\n");
       break;
     }
-
-    interpret(line); // -> scan-compile-execute pipeline entrypoint
+    // A scan-compile-execute pipeline entrypoint
+    interpret(line);
   }
 }
 
 static void *readFile(const char *path) {
   FILE *file = fopen(path, "rb");
   if (file == NULL) {
-    fprintf(stderr, "Could not open file \"%s\".\n", path);
-    exit(74);
+    ioOperationError("Could not open file \"%s\".\n", path);
   }
-
-  // Move pointer to the EOF to determine the file size, then rewind it back
+  // Move pointer to the EOF to determine the file size, then rewind it back.
   fseek(file, 0L, SEEK_END);
   size_t fileSize = ftell(file);
   rewind(file);
 
   char *buffer = (char *)malloc(fileSize + 1);
   if (buffer == NULL) {
-    fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
-    exit(74);
+    ioOperationError("Not enough memory to read \"%s\".\n", path);
   }
 
   size_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
   if (bytesRead < fileSize) {
-    fprintf(stderr, "Unable to read file \"%s\".\n", path);
-    exit(74);
+    ioOperationError("Unable to read file \"%s\".\n", path);
   }
-
   buffer[bytesRead] = '\0';
 
   fclose(file);
@@ -80,13 +67,24 @@ static void *readFile(const char *path) {
 
 static void runFile(const char *path) {
   char *source = readFile(path);
-  InterpretResult result = interpret(source); // Make sure the source outlives the tokens
-  free(source); // readFile() passes the ownership, we should take care of that memory block
+  InterpretResult result = interpret(source);
+  free(source);
+  if (result == INTERPRET_COMPILE_ERROR) { exit(65); }
+  if (result == INTERPRET_RUNTIME_ERROR) { exit(70); }
+}
 
-  if (result == INTERPRET_COMPILE_ERROR) {
-    exit(65);
+int main(int argc, char *argv[]) {
+  initVM();
+
+  if (argc == 1) {
+    repl();
+  } else if (argc == 2) {
+    runFile(argv[1]);
+  } else {
+    fprintf(stderr, "Usage: clox [path]\n");
+    exit(64);
   }
-  if (result == INTERPRET_RUNTIME_ERROR) {
-    exit(70);
-  }
+
+  freeVM();
+  return 0;
 }
