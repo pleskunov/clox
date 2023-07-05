@@ -55,6 +55,11 @@ static Value peek(int distance) {
   return vm.stackTop[-1 - distance];
 }
 
+/* Returns true if a given value is NIL or boolean false; otherwise - false. */
+static bool isFalsey(Value value) {
+  return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
+}
+
 void freeVM(void) {
 }
 
@@ -103,12 +108,21 @@ static InterpretResult run(void) {
       case OP_NIL:        push(NIL_VAL);            break;
       case OP_TRUE:       push(BOOL_VAL(true));     break;
       case OP_FALSE:      push(BOOL_VAL(false));    break;
-
+      case OP_EQUAL: {
+        Value rhs_operand = pop();
+        Value lhs_operand = pop();
+        push(BOOL_VAL(valuesEqual(lhs_operand, rhs_operand)));
+        break;
+      }
+      case OP_GREATER:    BINARY_OP(BOOL_VAL, >); break;
+      case OP_LESS:       BINARY_OP(BOOL_VAL, <); break;
       case OP_ADD:        BINARY_OP(NUMBER_VAL, +); break; // The wrapper to use is passed in as a macro parameter.
       case OP_SUBTRACT:   BINARY_OP(NUMBER_VAL, -); break;
       case OP_MULTIPLY:   BINARY_OP(NUMBER_VAL, *); break;
       case OP_DIVIDE:     BINARY_OP(NUMBER_VAL, /); break;
-
+      case OP_NOT:
+        push(BOOL_VAL(isFalsey(pop())));
+        break;
       case OP_NEGATE:
         /* Check if the Value on top of the stack is a number. If it’s not, report the runtime error and terminate. */
         if (!IS_NUMBER(peek(0))) {
