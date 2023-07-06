@@ -1,15 +1,12 @@
-#include "chunk.h"
-#include "common.h"
+#include "vm.h"
+#include "memory.h"
 #include "debug.h"
 #include "compiler.h"
-#include "value.h"
-#include "vm.h"
 
 VM vm;
 
-/* Helpers */
+/* Set a pointer to the beginning of the array, to indicate that the stack is empty. */
 static void resetStack(void) {
-  // Set a pointer to the beginning of the array, to indicate that the stack is empty
   vm.stackTop = vm.stack;
 }
 
@@ -35,6 +32,7 @@ static void runtimeError(const char *format, ...) {
 
 void initVM(void) {
   resetStack();
+  vm.objects = NULL;
 }
 
 void push(Value value) {
@@ -61,6 +59,7 @@ static bool isFalsey(Value value) {
 }
 
 void freeVM(void) {
+  freeObjects();
 }
 
 static InterpretResult run(void) {

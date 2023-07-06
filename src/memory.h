@@ -1,28 +1,34 @@
+/* This module handles low-level operations with memory at runtime. */
+
 #ifndef clox_memory_h
 #define clox_memory_h
 
 #include "common.h"
 
-/* Macro to build up a dynamic array capacity. */
+/* Allocate a memory block of given size and type. */
+#define ALLOCATE(type, count) \
+  (type*)reallocate(NULL, 0, sizeof(type) * (count))
+
+/* Free the memory block pointed by a given pointer. */
+#define FREE(type, pointer) \
+  reallocate(pointer, sizeof(type), 0)
+
+/* Expand the capacity of a dynamic array. */
 #define GROW_CAPACITY(capacity) \
   ((capacity) < 8 ? 8 : (capacity) * 2)
 
-/* Macro wrapper for reallocate() to expand the array to the new capacity. */
+/* Resize the dynamic array. */
 #define GROW_ARRAY(type, pointer, oldCount, newCount) \
   (type *)reallocate(pointer, sizeof(type) * (oldCount), sizeof(type) * (newCount))
 
-/* Macro wrapper for reallocate() to free the array. */
+/* Free the memory allocated for the dynamic array. */
 #define FREE_ARRAY(type, pointer, oldCount) \
   reallocate(pointer, sizeof(type) * (oldCount), 0)
 
-/* Dynamic memory management.
-oldSize   newSize               Operation
-
-0         Non‑zero              Allocate new block.
-Non‑zero  0                     Free allocated block.
-Non‑zero  Smaller than oldSize  Shrink existing allocated block.
-Non‑zero  Larger than oldSize   Grow existing allocated block.
-*/
+/* Dynamic memory management. See memory.c for more details. */
 void *reallocate(void *pointer, size_t oldSize, size_t newSize);
+
+/* Free the memory allocated for objects in a heap at the runtime. */
+void freeObjects();
 
 #endif

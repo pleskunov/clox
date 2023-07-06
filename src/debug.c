@@ -1,9 +1,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "chunk.h"
-#include "debug.h"
 #include "value.h"
+#include "debug.h"
 
 static int simpleInstruction(const char *name, int offset) {
   printf("%s\n", name);

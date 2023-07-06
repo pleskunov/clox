@@ -1,3 +1,5 @@
+/* This module provides a limited debugger functionality by allowing to disassemble the bytecode chunks at runtime. */
+
 #ifndef clox_debug_h
 #define clox_debug_h
 

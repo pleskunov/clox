@@ -21,7 +21,7 @@ typedef enum {
   OP_RETURN,
 } OpCode;
 
-/* Bytecode instructions struct. */
+/* A bytecode instruction chunk. */
 typedef struct {
   int         capacity;     // dynamic array capacity
   int         entries;      // number of values actually stored in dynamic array
@@ -30,17 +30,17 @@ typedef struct {
   ValueArray  constants;    // -> struct to handle constants
 } Chunk;
 
-/* Initialize the bytecode chunk. */
+/* Initialize a bytecode chunk. */
 void initChunk(Chunk *chunk);
 
-/* Append the BYTE read from the LINE to the CHUNK. */
+/* Append a given byte and its line information to the chunk. */
 void writeChunk(Chunk *chunk, uint8_t byte, int line);
 
 /* Destroy the existing chunk. */
 void freeChunk(Chunk *chunk);
 
-/* Add the constant to the constant pool. Returns index 
-of element to which the constant was appended.*/
+/* Add the constant to the constant pool. Returns index of element to which 
+the constant was appended.*/
 int addConstant(Chunk *chunk, Value value);
 
 #endif
