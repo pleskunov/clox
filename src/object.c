@@ -1,4 +1,3 @@
-#include "common.h"
 #include "memory.h"
 #include "object.h"
 #include "vm.h"
@@ -28,6 +27,10 @@ static ObjString* allocateString(char *chars, int length) {
   string->chars = chars;
 
   return string;
+}
+
+ObjString* takeString(char* chars, int length) {
+  return allocateString(chars, length);
 }
 
 /* Allocate new memory block on heap, copy given array of characters from lexeme to

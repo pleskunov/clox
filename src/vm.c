@@ -12,21 +12,17 @@ static void resetStack(void) {
 
 /* Report the runtime error. */
 static void runtimeError(const char *format, ...) {
-
   /* Determine a number of arguments that were passed at the function call. */
   va_list args;
   va_start(args, format);
   vfprintf(stderr, format, args); // stderr stream is used as buffer to compile the message to print.
   va_end(args);
   fputs("\n", stderr);
-
   /* Look up the offending line. The interpreter advances past each instruction before executing it,
   so we need to shift it back by 1. */
   size_t instruction = vm.ip - vm.chunk->code - 1;
   int line = vm.chunk->lines[instruction];
-
   fprintf(stderr, "[line %d] in script\n", line);
-
   resetStack();
 }
 
@@ -56,6 +52,23 @@ static Value peek(int distance) {
 /* Returns true if a given value is NIL or boolean false; otherwise - false. */
 static bool isFalsey(Value value) {
   return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
+}
+
+static void concatenate() {
+  /* Take both strinbg from the VM stack. */
+  ObjString *b = AS_STRING(pop());
+  ObjString *a = AS_STRING(pop());
+  /* Calculate the length of new string and allocate the memory block for it. */
+  int length = a->length + b->length;
+  char *chars = ALLOCATE(char, length + 1);
+  /* Copy over first string, then the second one right after the first and append a 
+  NULL terminator char to the end.*/
+  memcpy(chars, a->chars, a->length);
+  memcpy(chars + a->length, b->chars, b->length);
+  chars[length] = '\0';
+  /* Produce new object to contain concatenated string. */
+  ObjString *result = takeString(chars, length);
+  push(OBJ_VAL(result));
 }
 
 void freeVM(void) {
@@ -115,7 +128,21 @@ static InterpretResult run(void) {
       }
       case OP_GREATER:    BINARY_OP(BOOL_VAL, >); break;
       case OP_LESS:       BINARY_OP(BOOL_VAL, <); break;
-      case OP_ADD:        BINARY_OP(NUMBER_VAL, +); break; // The wrapper to use is passed in as a macro parameter.
+      case OP_ADD: {
+        /* To support string concatentaion, ADD instruction dynamically 
+        inspects the operands and chooses the right operation. */
+        if (IS_STRING(peek(0)) && (IS_STRING(peek(1)))) {
+          concatenate();
+        } else if (IS_NUMBER(peek(0)) && (IS_NUMBER(peek(1)))) {
+          double rhs_operand = AS_NUMBER(pop());
+          double lhs_operand = AS_NUMBER(pop());
+          push(NUMBER_VAL(lhs_operand + rhs_operand));
+        } else {
+          runtimeError("Operands must be two numbers or two strings.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        break;
+      }
       case OP_SUBTRACT:   BINARY_OP(NUMBER_VAL, -); break;
       case OP_MULTIPLY:   BINARY_OP(NUMBER_VAL, *); break;
       case OP_DIVIDE:     BINARY_OP(NUMBER_VAL, /); break;

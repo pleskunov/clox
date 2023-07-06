@@ -85,6 +85,7 @@ target_sources(vm
   PUBLIC
     src/common.h
     src/memory.h
+    src/object.h
     src/value.h
     src/chunk.h
     src/debug.h

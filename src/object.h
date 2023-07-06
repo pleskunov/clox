@@ -1,6 +1,7 @@
 #ifndef clox_object_h
 #define clox_object_h
 
+#include "common.h"
 #include "value.h"
 
 /* Object type enum. */
@@ -23,6 +24,9 @@ struct ObjString {
 
 /* Create a new string object and copy a given string into that object. */
 ObjString* copyString(const char *chars, int length);
+
+/* Wrap a given string into new string object. */
+ObjString* takeString(char* chars, int length);
 
 /* Print out the content of a given object. */
 void printObject(Value value);

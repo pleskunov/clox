@@ -6,6 +6,7 @@
 #include "common.h"
 #include "value.h"
 #include "chunk.h"
+#include "object.h"
 
 #define STACK_MAX 256
 

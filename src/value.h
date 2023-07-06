@@ -5,7 +5,6 @@
 #include "common.h"
 
 typedef struct Obj Obj;
-
 typedef struct ObjString ObjString;
 
 /* The value tag. */
