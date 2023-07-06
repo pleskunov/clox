@@ -1,14 +1,3 @@
-/* A personal build of clox that follows the book Crafting Interpreters by Robert Nystrom.
-This build is exeprimental by far and can deviate from the original implementation, causing
-incompatibilities, bugs and broken functionality.
-
-Build requirement:
-1. cmake, at least 3.22 (3.26 is recommended)
-2. build-essential (if you use debian or its derivatives) or base-devel (if you are on arch-based system)
-
-Adjust the cmake version to that of locally installed.
-*/
-
 #include "common.h"
 #include "chunk.h"
 #include "debug.h"
