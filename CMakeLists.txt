@@ -1,36 +1,62 @@
 cmake_minimum_required(VERSION 3.26)
 set(CMAKE_BUILD_TYPE Debug)
 
-project(bytecodevm VERSION 1.0 DESCRIPTION "A clox from Crafting Interpreters book.")
+project(bytecodevm VERSION 1.1 DESCRIPTION "A clox from Crafting Interpreters book.")
 
-add_library(vm_memory)
-target_sources(vm_memory
+add_library(memory)
+target_sources(memory
   PUBLIC
     src/common.h
+    src/object.h
+    src/vm.h
     src/memory.h
   PRIVATE
     src/memory.c
-  )
+)
 
-add_library(vm_value)
-target_sources(vm_value
+add_library(object)
+target_sources(object
   PUBLIC
     src/common.h
+    src/memory.h
+    src/vm.h
+    src/object.h
+  PRIVATE
+    src/object.c
+)
+
+add_library(value)
+target_sources(value
+  PUBLIC
+    src/common.h
+    src/memory.h
+    src/object.h
     src/value.h
   PRIVATE
     src/value.c
-  )
-target_link_libraries(vm_value PRIVATE vm_memory)
+)
+target_link_libraries(value PRIVATE memory object)
 
-add_library(vm_chunk)
-target_sources(vm_chunk
+add_library(chunk)
+target_sources(chunk
   PUBLIC
     src/common.h
+    src/memory.h
+    src/value.h
     src/chunk.h
   PRIVATE
     src/chunk.c
+)
+
+add_library(debugger)
+target_sources(debugger
+  PUBLIC
+    src/value.h
+    src/chunk.h
+    src/debug.h
+  PRIVATE
+    src/debug.c
   )
-target_link_libraries(vm_chunk PRIVATE vm_memory vm_value)
 
 add_library(scanner)
 target_sources(scanner
@@ -39,39 +65,39 @@ target_sources(scanner
     src/scanner.h
   PRIVATE
     src/scanner.c
-  )
+)
 
 add_library(compiler)
 target_sources(compiler
   PUBLIC
     src/common.h
+    src/scanner.h
+    src/object.h
+    src/debug.h
     src/compiler.h
   PRIVATE
     src/compiler.c
-  )
+)
 target_link_libraries(compiler PRIVATE scanner)
 
-add_library(vm_debug)
-target_sources(vm_debug
+add_library(vm)
+target_sources(vm
   PUBLIC
+    src/common.h
+    src/memory.h
+    src/value.h
+    src/chunk.h
     src/debug.h
-  PRIVATE
-    src/debug.c
-  )
-target_link_libraries(vm_debug PRIVATE vm_chunk)
-
-add_library(vm_core)
-target_sources(vm_core
-  PUBLIC
+    src/compiler.h
     src/vm.h
   PRIVATE
     src/vm.c
-  )
-target_link_libraries(vm_core PRIVATE vm_chunk)
+)
+target_link_libraries(vm PRIVATE value chunk debugger compiler)
 
 add_executable(bcvm)
 target_sources(bcvm
   PRIVATE
     src/main.c
-  )
-target_link_libraries(bcvm PRIVATE vm_core vm_chunk vm_debug compiler)
+)
+target_link_libraries(bcvm PRIVATE vm)
