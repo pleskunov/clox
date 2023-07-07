@@ -17,9 +17,10 @@ struct Obj {
 
 /* A string type object. */
 struct ObjString {
-  Obj   obj;
-  int   length;
-  char  *chars;
+  Obj     obj;
+  int     length;
+  char    *chars;
+  uint32_t hash;
 };
 
 /* Create a new string object and copy a given string into that object. */
