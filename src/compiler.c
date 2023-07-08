@@ -42,6 +42,13 @@ typedef struct ParseRule_ {
   Precedence    precedence;   // Operator precedence level identifier.
 } ParseRule;
 
+/* Forward declarations to handle the fact that the grammar is recursive. */
+static void expression();
+static void statement();
+static void declaration();
+static ParseRule* getRule(TokenType type);
+static void parsePrecedence(Precedence precedence);
+
 Parser parser;
 
 /* An intermediary global variable and corresponding function to pass the chunk 
@@ -51,7 +58,6 @@ Chunk *compilingChunk;
 static Chunk* currentChunk() {
   return compilingChunk;
 }
-
 
 /* ERROR HANDLING */
 static void errorAt(Token *token, const char *message) {
@@ -90,7 +96,6 @@ static void errorAtCurrent(const char *message) {
   errorAt(&parser.current, message);
 }
 
-
 /* COMPILER FRONT END */
 /* Ask the scanner for the next token and store it for later use. */
 static void advance() {
@@ -119,6 +124,19 @@ static void consume(TokenType type, const char *message) {
   errorAtCurrent(message);
 }
 
+/* Return true if the token has a given type. */
+static bool check(TokenType type) {
+  return parser.current.type == type;
+}
+
+static bool match(TokenType type) {
+  if (!check(type)) {
+    return false;
+  }
+  /* If the current token has the given type, we consume the token and return true. */
+  advance();
+  return true;
+}
 
 /* BYTECODE GENERATION */
 /* Append a single byte (opcode or operand to an instruction) to the chunk.
@@ -170,14 +188,7 @@ static void endCompiler() {
   emitReturn();
 }
 
-/* Forward declarations to handle the fact that the grammar is recursive. */
-static void expression();
-static ParseRule* getRule(TokenType type);
-static void parsePrecedence(Precedence precedence);
-
-
 /* PARSERS FOR TOKENS */
-
 static void binary() {
   /* At the moment of call entire left-hand operand expression has already 
   been compiled and the subsequent infix operator consumed. */
@@ -341,6 +352,23 @@ static void expression() {
   parsePrecedence(PREC_ASSIGNMENT);
 }
 
+/* For the print token, compile the rest of the statement. */
+static void printStatement() {
+  expression();
+  consume(TOKEN_SEMICOLON, "Expect ';' after value.");
+  emitByte(OP_PRINT);
+}
+
+static void declaration() {
+  statement();
+}
+
+static void statement() {
+  /* Match the print statemnt. */
+  if (match(TOKEN_PRINT)) {
+    printStatement();
+  }
+}
 
 /* This is an entrypoint for compilation; retruns true if no errors were encountered at compilation time, otherwise - false. */
 bool compile(const char *source, Chunk *chunk) {
@@ -353,10 +381,13 @@ bool compile(const char *source, Chunk *chunk) {
   parser.hadError = false;
   parser.panicMode = false;
 
-  advance();                                        // Step forward through the token stream.
-  expression();                                     // Parse a single expression.
+  advance();
 
-  consume(TOKEN_EOF, "Expect end of expression.");  // Check for the sentinel EOF token.
+  /* Now, a program is a sequence of declarations. */
+  while (!match(TOKEN_EOF)) {
+    declaration();
+  }
+
   endCompiler();
 
   return !parser.hadError;                          // Return false if hadError flag is set at compilation time.
