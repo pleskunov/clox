@@ -33,7 +33,7 @@ typedef enum Precedence_ {
 } Precedence;
 
 // A placeholder function for ParserRule table.
-typedef void (*ParseFn)();
+typedef void (*ParseFn)(bool canAssign);
 
 /* A ParseRule table structure. */
 typedef struct ParseRule_ {
@@ -48,6 +48,7 @@ static void statement();
 static void declaration();
 static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
+static uint8_t identifierConstant(Token* name);
 
 Parser parser;
 
@@ -189,7 +190,7 @@ static void endCompiler() {
 }
 
 /* PARSERS FOR TOKENS */
-static void binary() {
+static void binary(bool canAssign) {
   /* At the moment of call entire left-hand operand expression has already 
   been compiled and the subsequent infix operator consumed. */
   // Grab the operator token type.
@@ -212,8 +213,7 @@ static void binary() {
       return; // Unreachable.
   }
 }
-
-static void literal() {
+static void literal(bool canAssign) {
   switch (parser.previous.type) {
     case TOKEN_FALSE: emitByte(OP_FALSE); break;
     case TOKEN_NIL:   emitByte(OP_NIL);   break;
@@ -228,13 +228,13 @@ parentheses, then parse the closing ) at the end.
 
 This function has no runtime semantics on its own and therefore doesn’t emit any bytecode.
 The inner call to expression() takes care of generating bytecode for the expression inside the parentheses. */
-static void grouping() {
+static void grouping(bool canAssign) {
   expression();
   consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
 
 /* A function to compile number literals. */
-static void number() {
+static void number(bool canAssign) {
   // Convert a lexeme to a double value using C std. library, then pass it to the code gen function.
   double value = strtod(parser.previous.start, NULL);
   emitConstant(NUMBER_VAL(value)); // Convert to Lox internal representation and set the tag.
@@ -242,12 +242,32 @@ static void number() {
 
 /* Extract the string’s characters directly from the lexeme, trim the leading and trailing quotation 
 marks, then create a string object, wrap it in a Value, and stuffs it into the constant table. */
-static void string() {
+static void string(bool canAssign) {
   emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
 }
 
+static void namedVariable(Token name, bool canAssign) {
+  uint8_t arg = identifierConstant(&name);
+
+  /*
+  Before compiling an expression that can also be used as an assignment target, 
+  we look for a subsequent = token. If we see one, we compile it as an assignment or 
+  setter instead of a variable access or getter.
+  */
+  if (canAssign && match(TOKEN_EQUAL)) {
+    expression();
+    emitBytes(OP_SET_GLOBAL, arg);
+  } else {
+    emitBytes(OP_GET_GLOBAL, arg);
+  }
+}
+
+static void variable(bool canAssign) {
+  namedVariable(parser.previous, canAssign);
+}
+
 /* A function to compile unary operators. */
-static void unary() {
+static void unary(bool canAssign) {
   TokenType operatorType = parser.previous.type;
 
   // Compile the operand (grab the token type to detect which unary operator it is).
@@ -284,7 +304,7 @@ ParseRule rules[] = {
   [TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_COMPARISON},
   [TOKEN_LESS]          = {NULL,     binary, PREC_COMPARISON},
   [TOKEN_LESS_EQUAL]    = {NULL,     binary, PREC_COMPARISON},
-  [TOKEN_IDENTIFIER]    = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_IDENTIFIER]    = {variable, NULL,   PREC_NONE},
   [TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
   [TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
   [TOKEN_AND]           = {NULL,     NULL,   PREC_NONE},
@@ -323,7 +343,8 @@ static void parsePrecedence(Precedence precedence) {
   }
 
   // Pass the control to prefix parsing function, to emit the bytecode instructions.
-  prefixRule();
+  bool canAssign = precedence <= PREC_ASSIGNMENT;
+  prefixRule(canAssign);
 
   /* Keep looping, we look for an infix parser for the next token while the precdence
   is greater than the treshold one.
@@ -334,12 +355,34 @@ static void parsePrecedence(Precedence precedence) {
   2) If the next token is too low precedence, or isn’t an infix operator at all, we’re done.
   */
 
+
   while (precedence <= getRule(parser.current.type)->precedence) {
     advance();
     // Consume the operator and hand off control to the infix parser we found.
     ParseFn infixRule = getRule(parser.previous.type)->infix;
-    infixRule();
+    infixRule(canAssign);
   }
+
+  if (canAssign && match(TOKEN_EQUAL)) {
+    error("Invalid assignment target.");
+  }
+}
+
+/* Take the given token and add its lexeme to the chunk’s constant table as a string. 
+It then returns the index of that constant in the constant table. */
+static uint8_t identifierConstant(Token* name) {
+  return makeConstant(OBJ_VAL(copyString(name->start, name->length)));
+}
+
+static uint8_t parseVariable(const char* errorMessage) {
+  /* It requires the next token to be an identifier, which it consumes and passes over to identfierConstant(). */
+  consume(TOKEN_IDENTIFIER, errorMessage);
+  return identifierConstant(&parser.previous);
+}
+/* We store the string in the constant table and the instruction then refers to the name by its index in the table. 
+This outputs the bytecode instruction that defines the new variable and stores its initial value. */
+static void defineVariable(uint8_t global) {
+  emitBytes(OP_DEFINE_GLOBAL, global);
 }
 
 static ParseRule* getRule(TokenType type) {
@@ -350,6 +393,20 @@ static ParseRule* getRule(TokenType type) {
 static void expression() {
   // Keep compiling until ASSIGNMENT operator precdence level is reached.
   parsePrecedence(PREC_ASSIGNMENT);
+}
+
+static void varDeclaration() {
+  uint8_t global = parseVariable("Expect variable name.");
+
+  if (match(TOKEN_EQUAL)) {
+    expression();
+  } else {
+    /* If the user doesn’t initialize the variable, we implicitly initialize it to nil. */
+    emitByte(OP_NIL);
+  }
+  consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
+
+  defineVariable(global);
 }
 
 /* An “expression statement” is simply an expression followed by a semicolon.
@@ -395,7 +452,11 @@ static void synchronize() {
 }
 
 static void declaration() {
-  statement();
+  if (match(TOKEN_VAR)) {
+    varDeclaration();
+  } else {
+    statement();
+  }
 
   /* If we hit a compile error while parsing the previous statement, we are now in panic mode.
   When that happens, after the statement we start synchronizing.*/

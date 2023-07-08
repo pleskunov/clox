@@ -26,9 +26,12 @@ static void runtimeError(const char *format, ...) {
   resetStack();
 }
 
+/* VM boot subroutine. */
 void initVM(void) {
   resetStack();
   vm.objects = NULL;
+
+  initTable(&vm.globals);
   initTable(&vm.strings);
 }
 
@@ -72,18 +75,27 @@ static void concatenate() {
   push(OBJ_VAL(result));
 }
 
+/* VM terminating subroutine. */
 void freeVM(void) {
+  freeTable(&vm.globals);
   freeTable(&vm.strings);
   freeObjects();
 }
 
 static InterpretResult run(void) {
 
-// Macro to read the bytecode pointed by IP
+/* Macro to read the bytecode pointed by IP */
 #define READ_BYTE() (*vm.ip++)
-// Macro to read a constant from the next byte after bytecode
+
+/* Macro to read a constant from the next byte after bytecode. */
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
-// Marco to handle operations that use binary operators
+
+/* Compiler never emits instructions to non-string const, so we can read a 
+one-byte operand from the bytecode chunk. We treat that as an index into the 
+chunk’s constant table and return the string at that index. */
+#define READ_STRING() AS_STRING(READ_CONSTANT())
+
+/* Marco to handle operations that use binary operators */
 #define BINARY_OP(valueType, operator) \
   do { \
     if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
@@ -123,6 +135,42 @@ static InterpretResult run(void) {
       case OP_TRUE:       push(BOOL_VAL(true));     break;
       case OP_FALSE:      push(BOOL_VAL(false));    break;
       case OP_POP:        pop();                    break; // Pop off the stack and discard.
+      case OP_GET_GLOBAL: {
+        /* Pull the constant table index from the instruction’s operand and get the variable name.
+        Then, use that index as a key to look up the variable’s value in the globals hash table. */
+        ObjString *name = READ_STRING();
+        Value value;
+        if (!tableGet(&vm.globals, name, &value)) {
+          /* If the key isn’t present in the hash table, it means that global variable has never been defined. */
+          runtimeError("Undefined variable '%s'.", name->chars);
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        /* Otherwise, we take the value and push it onto the stack. */
+        push(value);
+        break;
+      }
+      case OP_DEFINE_GLOBAL: {
+        /* Get the name of the variable from the constant table. Then take the value from the
+        top of the stack and store it in a hash table with that name as the key. */
+        ObjString *name = READ_STRING();
+        tableSet(&vm.globals, name, peek(0));
+        pop();
+        break;
+      }
+      case OP_SET_GLOBAL: {
+        ObjString *name = READ_STRING();
+        if (tableSet(&vm.globals, name, peek(0))) {
+          /* 
+          The call to tableSet() stores the value in the global variable table even if the variable
+          wasn’t previously defined. That fact is visible in a REPL session, since it keeps running
+          even after the runtime error is reported. So we take care to delete that zombie value from the table.
+          */
+          tableDelete(&vm.globals, name); 
+          runtimeError("Undefined variable '%s'.", name->chars);
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        break;
+      }
       case OP_EQUAL: {
         Value rhs_operand = pop();
         Value lhs_operand = pop();
@@ -174,6 +222,7 @@ static InterpretResult run(void) {
 
 #undef READ_BYTE
 #undef READ_CONSTANT
+#undef READ_STRING
 #undef BINARY_OP
 }
 

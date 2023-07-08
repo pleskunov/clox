@@ -17,6 +17,7 @@ typedef struct {
   uint8_t   *ip;                // Instruction pointer.
   Value     stack[STACK_MAX];
   Value     *stackTop;          // Just past the element containing the top value.
+  Table     globals;
   Table     strings;
   Obj       *objects;
 } VM;
