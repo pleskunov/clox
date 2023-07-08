@@ -367,8 +367,41 @@ static void printStatement() {
   emitByte(OP_PRINT);
 }
 
+/* Error synchronization. */
+static void synchronize() {
+  parser.panicMode = false;
+
+  /* Skip tokens indiscriminately until a statement boundary is reached. */
+  while (parser.current.type != TOKEN_EOF) {
+    if (parser.previous.type == TOKEN_SEMICOLON) {
+      return;
+    }
+    switch (parser.current.type) {
+      case TOKEN_CLASS:
+      case TOKEN_FUN:
+      case TOKEN_VAR:
+      case TOKEN_FOR:
+      case TOKEN_IF:
+      case TOKEN_WHILE:
+      case TOKEN_PRINT:
+      case TOKEN_RETURN:
+        return;
+
+      default:
+        ; // Do nothing.
+    }
+    advance();
+  }
+}
+
 static void declaration() {
   statement();
+
+  /* If we hit a compile error while parsing the previous statement, we are now in panic mode.
+  When that happens, after the statement we start synchronizing.*/
+  if (parser.panicMode) {
+    synchronize();
+  }
 }
 
 static void statement() {
