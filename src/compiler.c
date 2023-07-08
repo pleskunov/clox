@@ -352,6 +352,14 @@ static void expression() {
   parsePrecedence(PREC_ASSIGNMENT);
 }
 
+/* An “expression statement” is simply an expression followed by a semicolon.
+Semantically, an expression statement evaluates the expression and discards the result. */
+static void expressionStatement() {
+  expression();
+  consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
+  emitByte(OP_POP);
+}
+
 /* For the print token, compile the rest of the statement. */
 static void printStatement() {
   expression();
@@ -367,6 +375,8 @@ static void statement() {
   /* Match the print statemnt. */
   if (match(TOKEN_PRINT)) {
     printStatement();
+  } else {
+    expressionStatement();
   }
 }
 

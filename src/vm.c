@@ -122,6 +122,7 @@ static InterpretResult run(void) {
       case OP_NIL:        push(NIL_VAL);            break;
       case OP_TRUE:       push(BOOL_VAL(true));     break;
       case OP_FALSE:      push(BOOL_VAL(false));    break;
+      case OP_POP:        pop();                    break; // Pop off the stack and discard.
       case OP_EQUAL: {
         Value rhs_operand = pop();
         Value lhs_operand = pop();
