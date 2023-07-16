@@ -578,9 +578,21 @@ static void ifStatement() {
   consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition."); 
 
   int thenJump = emitJump(OP_JUMP_IF_FALSE);
+  emitByte(OP_POP);
   statement();
 
+  /* After executing the then branch, this jumps to the next
+  statement after the else branch. This prevents a fallthrough during execution
+  of then branch. This jump is always taken. */
+  int elseJump = emitJump(OP_JUMP);
+
   patchJump(thenJump);
+  emitByte(OP_POP);
+
+  if (match(TOKEN_ELSE)) {
+    statement();
+    patchJump(elseJump);
+  }
 }
 
 /* For the print token, compile the rest of the statement. */
