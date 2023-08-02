@@ -61,6 +61,7 @@ static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
 static uint8_t identifierConstant(Token* name);
 static int resolveLocal(Compiler *compiler, Token *name);
+static void and_(bool canAssign);
 
 Parser parser;
 Compiler *current = NULL;
@@ -296,6 +297,17 @@ static void number(bool canAssign) {
   emitConstant(NUMBER_VAL(value)); // Convert to Lox internal representation and set the tag.
 }
 
+static void or_(bool canAssign) {
+  int elseJump = emitJump(OP_JUMP_IF_FALSE);
+  int endJump = emitJump(OP_JUMP);
+
+  patchJump(elseJump);
+  emitByte(OP_POP);
+
+  parsePrecedence(PREC_OR);
+  patchJump(endJump);
+}
+
 /* Extract the string’s characters directly from the lexeme, trim the leading and trailing quotation 
 marks, then create a string object, wrap it in a Value, and stuffs it into the constant table. */
 static void string(bool canAssign) {
@@ -372,7 +384,7 @@ ParseRule rules[] = {
   [TOKEN_IDENTIFIER]    = {variable, NULL,   PREC_NONE},
   [TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
   [TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
-  [TOKEN_AND]           = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_AND]           = {NULL,     and_,   PREC_AND},
   [TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
   [TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
   [TOKEN_FALSE]         = {literal,  NULL,   PREC_NONE},
@@ -380,7 +392,7 @@ ParseRule rules[] = {
   [TOKEN_FUN]           = {NULL,     NULL,   PREC_NONE},
   [TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
   [TOKEN_NIL]           = {literal,  NULL,   PREC_NONE},
-  [TOKEN_OR]            = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_OR]            = {NULL,     or_,    PREC_OR},
   [TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
   [TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
   [TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
@@ -529,6 +541,18 @@ static void defineVariable(uint8_t global) {
   /* We store the string in the constant table and the instruction then refers to the name by its index in the table. 
 T his outputs the bytecode instruction that defines the new variable and stores its initial value. */
   emitBytes(OP_DEFINE_GLOBAL, global);
+}
+
+/* When this is called, left expression is already evaluated and the result is stored on top of the stack. If the result is 
+falsey, we discard the right side operand and left-hand side value as the result of the entire expression. Otherwise, we discard
+the left-hand value and evaluate the right operand which becomes the result of the whole AND expression. */
+static void and_(bool canAssign) {
+  int endJump = emitJump(OP_JUMP_IF_FALSE);
+
+  emitByte(OP_POP);
+  parsePrecedence(PREC_AND);
+
+  patchJump(endJump);
 }
 
 static ParseRule* getRule(TokenType type) {
