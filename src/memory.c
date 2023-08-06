@@ -25,6 +25,15 @@ void *reallocate(void *pointer, size_t oldSize, size_t newSize) {
 static void freeObject(Obj* object) {
   // Detect the object type.
   switch (object->type) {
+    case OBJ_FUNCTION: {
+      ObjFunction *function = (ObjFunction*)object;
+      freeChunk(&function->chunk);
+      FREE(ObjFunction, object);
+      break;
+    }
+    case OBJ_NATIVE:
+      FREE(ObjNative, object);
+      break;
     case OBJ_STRING: {
       // If it is a string, assign a new pointer to that string and use to free up the memory.
       ObjString *string = (ObjString*)object;

@@ -4,8 +4,9 @@
 #define clox_compiler_h
 
 #include "chunk.h"
+#include "object.h"
 
 /* Parse a source code and output a compiled bytecode instructions to the chunk. */
-bool compile(const char *source, Chunk *chunk);
+ObjFunction* compile(const char *source);
 
 #endif

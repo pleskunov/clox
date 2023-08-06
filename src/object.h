@@ -3,9 +3,12 @@
 
 #include "common.h"
 #include "value.h"
+#include "chunk.h"
 
 /* Object type enum. */
 typedef enum {
+  OBJ_FUNCTION,
+  OBJ_NATIVE,
   OBJ_STRING,
 } ObjType;
 
@@ -15,13 +18,32 @@ struct Obj {
   struct Obj  *next; // We store objects as a linked list.
 };
 
-/* A string type object. */
+/* A function class object. */
+typedef struct {
+  Obj       obj;
+  int       arity; // Number of parameters the function expects.
+  Chunk     chunk;
+  ObjString *name;
+} ObjFunction;
+
+typedef Value (*NativeFn)(int argCount, Value* args);
+
+/* A native function class object. */
+typedef struct {
+  Obj       obj;
+  NativeFn  function;
+} ObjNative;
+
+/* A string class object. */
 struct ObjString {
   Obj     obj;
   int     length;
   char    *chars;
   uint32_t hash;
 };
+
+ObjFunction* newFunction();
+ObjNative* newNative(NativeFn function);
 
 /* Create a new string object and copy a given string into that object. */
 ObjString* copyString(const char *chars, int length);
@@ -37,16 +59,15 @@ static inline bool isObjType(Value value, ObjType type) {
   return IS_OBJ(value) && AS_OBJ(value)->type == type;
 }
 
-/* Extract the object type tag from a given Value. */
 #define OBJ_TYPE(value)   (AS_OBJ(value)->type)
 
-/* Check if a given Value has the string type. */
-#define IS_STRING(value)  isObjType(value, OBJ_STRING)
+#define IS_FUNCTION(value)  isObjType(value, OBJ_FUNCTION)
+#define IS_NATIVE(value)    isObjType(value, OBJ_NATIVE)
+#define IS_STRING(value)    isObjType(value, OBJ_STRING)
 
-/* Take a Value that is expected to contain a pointer to a valid ObjString on the heap.
-The first returns the ObjString* pointer. The second one steps through that to return 
-the character array itself. */
-#define AS_STRING(value)  ((ObjString*)AS_OBJ(value))
-#define AS_CSTRING(value) (((ObjString*)AS_OBJ(value))->chars)
+#define AS_STRING(value)    ((ObjString*)AS_OBJ(value))
+#define AS_FUNCTION(value)  ((ObjFunction*)AS_OBJ(value))
+#define AS_NATIVE(value)    (((ObjNative*)AS_OBJ(value))->function)
+#define AS_CSTRING(value)   (((ObjString*)AS_OBJ(value))->chars)
 
 #endif

@@ -176,7 +176,9 @@ static Token number() {
 static Token string() {
   // Consume characters until we reach the closing quote.
   while (peek() != '"' && !isAtEnd()) {
-    if (peek() != '\n') { scanner.line++; }
+    if (peek() == '\n') {
+      scanner.line++;
+    }
     advance();
   }
 

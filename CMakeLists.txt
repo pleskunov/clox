@@ -22,6 +22,7 @@ target_sources(object
     src/table.h
     src/vm.h
     src/object.h
+    src/chunk.h
   PRIVATE
     src/object.c
 )

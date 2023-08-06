@@ -3,11 +3,18 @@
 #include "debug.h"
 #include "compiler.h"
 
+#include <time.h>
+
 VM vm;
+
+static Value clockNative(int argCount, Value* args) {
+  return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+}
 
 /* Set a pointer to the beginning of the array, to indicate that the stack is empty. */
 static void resetStack(void) {
   vm.stackTop = vm.stack;
+  vm.frameCount = 0;
 }
 
 /* Report the runtime error. */
@@ -18,12 +25,30 @@ static void runtimeError(const char *format, ...) {
   vfprintf(stderr, format, args); // stderr stream is used as buffer to compile the message to print.
   va_end(args);
   fputs("\n", stderr);
-  /* Look up the offending line. The interpreter advances past each instruction before executing it,
-  so we need to shift it back by 1. */
-  size_t instruction = vm.ip - vm.chunk->code - 1;
-  int line = vm.chunk->lines[instruction];
-  fprintf(stderr, "[line %d] in script\n", line);
+
+  /* Stack tracing. */
+  for (int i = vm.frameCount - 1; i >= 0; i--) {
+    CallFrame *frame = &vm.frames[i];
+    ObjFunction *function = frame->function;
+
+    size_t instruction = frame->ip - function->chunk.code - 1;
+    fprintf(stderr, "[line %d] in ", function->chunk.lines[instruction]);
+
+    if (function->name == NULL) {
+      fprintf(stderr, "script\n");
+    } else {
+      fprintf(stderr, "%s()\n", function->name->chars);
+    }
+  }
   resetStack();
+}
+
+static void defineNative(const char* name, NativeFn function) {
+  push(OBJ_VAL(copyString(name, (int)strlen(name))));
+  push(OBJ_VAL(newNative(function)));
+  tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+  pop();
+  pop();
 }
 
 /* VM boot subroutine. */
@@ -33,6 +58,8 @@ void initVM(void) {
 
   initTable(&vm.globals);
   initTable(&vm.strings);
+
+  defineNative("clock", clockNative);
 }
 
 void push(Value value) {
@@ -51,6 +78,47 @@ Value pop(void) {
 static Value peek(int distance) {
   // The distance determines how far down from the top of the stack to look: zero is the top, one is one slot down, etc.
   return vm.stackTop[-1 - distance];
+}
+
+static bool call(ObjFunction* function, int argCount) {
+
+  /* Runtime error checking. */
+  if (argCount != function->arity) {
+    runtimeError("Expected %d arguments but got %d.", function->arity, argCount);
+    return false;
+  }
+
+  /* CallFrame overflow mitigation during a deep call. */
+  if (vm.frameCount == FRAMES_MAX) {
+    runtimeError("Stack overflow.");
+    return false;
+  }
+
+  CallFrame *frame = &vm.frames[vm.frameCount++];
+  frame->function = function;
+  frame->ip = function->chunk.code;
+  frame->slots = vm.stackTop - argCount - 1;
+  return true;
+}
+
+static bool callValue(Value callee, int argCount) {
+  if (IS_OBJ(callee)) {
+    switch (OBJ_TYPE(callee)) {
+      case OBJ_FUNCTION: 
+        return call(AS_FUNCTION(callee), argCount);
+      case OBJ_NATIVE: {
+        NativeFn native = AS_NATIVE(callee);
+        Value result = native(argCount, vm.stackTop - argCount);
+        vm.stackTop -= argCount + 1;
+        push(result);
+        return true;
+      }
+      default:
+        break; // Non-callable object type.
+    }
+  }
+  runtimeError("Can only call functions and classes.");
+  return false;
 }
 
 /* Returns true if a given value is NIL or boolean false; otherwise - false. */
@@ -83,15 +151,13 @@ void freeVM(void) {
 }
 
 static InterpretResult run(void) {
-
+  CallFrame *frame = &vm.frames[vm.frameCount - 1];
 /* Macro to read the bytecode pointed by IP */
-#define READ_BYTE() (*vm.ip++)
-
-/* Macro to read a constant from the next byte after bytecode. */
-#define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
-
+#define READ_BYTE() (*frame->ip++)
 /* Yank the next two bytes from the chunk and build a 16-bit unsigned integer out of them. */
-#define READ_SHORT() (vm.ip += 2, (uint16_t)((vm.ip[-2] << 8) | vm.ip[-1]))
+#define READ_SHORT() (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
+/* Macro to read a constant from the next byte after bytecode. */
+#define READ_CONSTANT() (frame->function->chunk.constants.values[READ_BYTE()])
 
 /* Compiler never emits instructions to non-string const, so we can read a 
 one-byte operand from the bytecode chunk. We treat that as an index into the 
@@ -122,7 +188,7 @@ chunk’s constant table and return the string at that index. */
     printf("\n");
 
     /* OFFSET = (INT) CURRENT INSTR ADDR - FIRST INSTR IN CHUNK */
-    disassembleInstruction(vm.chunk, (int)(vm.ip - vm.chunk->code));
+    disassembleInstruction(&frame->function->chunk, (int)(frame->ip - frame->function->chunk.code));
 #endif
 
     uint8_t instruction;
@@ -140,12 +206,12 @@ chunk’s constant table and return the string at that index. */
       case OP_POP:        pop();                    break; // Pop off the stack and discard.
       case OP_GET_LOCAL: {
         uint8_t slot = READ_BYTE();
-        push(vm.stack[slot]); 
+        push(frame->slots[slot]);     // Access to a given numbered slot relative to the beginning of that frame.
         break;
       }
       case OP_SET_LOCAL: {
         uint8_t slot = READ_BYTE();
-        vm.stack[slot] = peek(0);
+        frame->slots[slot] = peek(0);
         break;
       }
       case OP_GET_GLOBAL: {
@@ -228,22 +294,41 @@ chunk’s constant table and return the string at that index. */
       }
       case OP_JUMP: {
         uint16_t offset = READ_SHORT();
-        vm.ip += offset;
+        frame->ip += offset;
         break;
       }
       case OP_JUMP_IF_FALSE: {
         uint16_t offset = READ_SHORT();
-        if (isFalsey(peek(0))) vm.ip += offset;
+        if (isFalsey(peek(0))) {
+          frame->ip += offset;
+        }
         break;
       }
       case OP_LOOP: {
         uint16_t offset = READ_SHORT();
-        vm.ip -= offset;
+        frame->ip -= offset;
+        break;
+      }
+      case OP_CALL: {
+        int argCount = READ_BYTE();
+        if (!callValue(peek(argCount), argCount)) {
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        frame = &vm.frames[vm.frameCount - 1];
         break;
       }
       case OP_RETURN: {
-        // Exit interpreter.
-        return INTERPRET_OK;
+        Value result = pop();
+        vm.frameCount--;
+        if (vm.frameCount == 0) {
+          pop();
+          return INTERPRET_OK;
+        }
+
+        vm.stackTop = frame->slots;
+        push(result);
+        frame = &vm.frames[vm.frameCount - 1];
+        break;
       }
     }
   }
@@ -256,23 +341,11 @@ chunk’s constant table and return the string at that index. */
 }
 
 InterpretResult interpret(const char *source) {
-  /* Create a new chunk to store compiled bytecode and initialize it. */
-  Chunk chunk;
-  initChunk(&chunk);
-
-  /* Attempt to compile the source code. If an error is encountered at
-  compilation time (compile() -> false), discard unusable chunk, then return
-  the corresponding error. */
-  if(!compile(source, &chunk)) {
-    freeChunk(&chunk);
+  ObjFunction *function = compile(source);
+  if (function == NULL) {
     return INTERPRET_COMPILE_ERROR;
   }
-
-  /* Send the completed chunk over to the VM to be executed. */
-  vm.chunk = &chunk;
-  vm.ip = vm.chunk->code;
-  InterpretResult rc = run();
-
-  freeChunk(&chunk);
-  return rc;
+  push(OBJ_VAL(function));
+  call(function, 0);
+  return run();
 }
