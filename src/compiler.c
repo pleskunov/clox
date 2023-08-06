@@ -167,6 +167,19 @@ static void emitBytes(uint8_t byte1, uint8_t byte2) {
   emitByte(byte2);
 }
 
+/* Emit a new loop instruction, which unconditionally jumps backwards by a given offset. */
+static void emitLoop(int loopStart) {
+  emitByte(OP_LOOP);
+
+  int offset = currentChunk()->entries - loopStart + 2;
+  if (offset > UINT16_MAX) {
+    error("Loop body too large.");
+  }
+
+  emitByte((offset >> 8) & 0xff);
+  emitByte(offset & 0xff);
+}
+
 /* Emit an instruction, followed by an offest placeholder for backpatching, then update the IP pointer. */
 static int emitJump(uint8_t instruction) {
   emitByte(instruction);
@@ -626,6 +639,24 @@ static void printStatement() {
   emitByte(OP_PRINT);
 }
 
+static void whileStatement() {
+  int loopStart = currentChunk()->entries;
+
+  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+  expression();
+  consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+
+  /* A jump instruction to skip over the subsequent body statement 
+  if the condition is falsey. */
+  int exitJump = emitJump(OP_JUMP_IF_FALSE);
+  emitByte(OP_POP);
+  statement();
+  emitLoop(loopStart);
+
+  patchJump(exitJump);
+  emitByte(OP_POP);
+}
+
 /* Error synchronization. */
 static void synchronize() {
   parser.panicMode = false;
@@ -673,6 +704,8 @@ static void statement() {
     printStatement();
   } else if (match(TOKEN_IF)) {
     ifStatement();
+  } else if (match(TOKEN_WHILE)) {
+    whileStatement();
   } else if (match(TOKEN_LEFT_BRACE)) {
     beginScope();
     block();
