@@ -632,6 +632,60 @@ static void ifStatement() {
   }
 }
 
+static void forStatement() {
+  beginScope();
+  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
+  if (match(TOKEN_SEMICOLON)) {
+    // No initializer.
+  } else if (match(TOKEN_VAR)) {
+    varDeclaration();
+  } else {
+    /* The initializer must have zero effect on the stack state, so we call
+    expressionStatement() instead of expression(). It looks for a semicolon,
+    which we need here too, and also emits an OP_POP instruction to discard 
+    the end value. */
+    expressionStatement();
+  }
+
+  int loopStart = currentChunk()->entries;
+  int exitJump = -1;
+
+  if (!match(TOKEN_SEMICOLON)) {
+    expression();
+    consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+
+    // Jump out of the loop if the condition is false.
+    exitJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP); // Condition.
+  }
+
+  /* We can’t compile the increment clause later, since the compiler 
+  only makes a single pass over the code. Instead, we’ll jump over the
+  increment, run the body, jump back up to the increment, run it, and
+  then go to the next iteration. */
+  if (!match(TOKEN_RIGHT_PAREN)) {
+    int bodyJump = emitJump(OP_JUMP);
+    int incrementStart = currentChunk()->entries;
+    expression();
+    emitByte(OP_POP);
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+
+    emitLoop(loopStart);
+    loopStart = incrementStart;
+    patchJump(bodyJump);
+  }
+
+  statement();
+  emitLoop(loopStart);
+
+  if (exitJump != -1) {
+    patchJump(exitJump);
+    emitByte(OP_POP); // Condition.
+  }
+
+  endScope();
+}
+
 /* For the print token, compile the rest of the statement. */
 static void printStatement() {
   expression();
@@ -702,6 +756,8 @@ static void statement() {
   /* Match the print statemnt. */
   if (match(TOKEN_PRINT)) {
     printStatement();
+  } else if (match(TOKEN_FOR)) {
+    forStatement();
   } else if (match(TOKEN_IF)) {
     ifStatement();
   } else if (match(TOKEN_WHILE)) {
