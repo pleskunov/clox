@@ -20,13 +20,14 @@ typedef struct {
 
 /* A VM registers. */
 typedef struct {
-  CallFrame frames[FRAMES_MAX];
-  int       frameCount;
-  Value     stack[STACK_MAX];
-  Value     *stackTop;          // Just past the element containing the top value.
-  Table     globals;
-  Table     strings;
-  Obj       *objects;
+  CallFrame   frames[FRAMES_MAX];
+  int         frameCount;
+  Value       stack[STACK_MAX];
+  Value       *stackTop;          // Just past the element containing the top value.
+  Table       globals;
+  Table       strings;
+  ObjUpvalue  *openUpvalues;
+  Obj         *objects;
 } VM;
 
 typedef enum {

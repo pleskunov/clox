@@ -3,6 +3,13 @@ set(CMAKE_BUILD_TYPE Debug)
 
 project(bytecodevm VERSION 1.2 DESCRIPTION "A clox from Crafting Interpreters book.")
 
+if (MSVC)
+  add_compile_options(/W4 /WX)
+else()
+  add_compile_options(-Wall -Wextra -pedantic)
+  #add_compile_options(-Wall -Wextra -pedantic -Werror)
+endif()
+
 add_library(memory)
 target_sources(memory
   PUBLIC
