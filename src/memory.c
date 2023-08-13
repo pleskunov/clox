@@ -25,6 +25,12 @@ void *reallocate(void *pointer, size_t oldSize, size_t newSize) {
 static void freeObject(Obj* object) {
   // Detect the object type.
   switch (object->type) {
+    case OBJ_CLOSURE: {
+      ObjClosure *closure = (ObjClosure*)object;
+      FREE_ARRAY(ObjUpvalue*, closure->upvalues, closure->upvalueCount);
+      FREE(ObjClosure, object);
+      break;
+    }
     case OBJ_FUNCTION: {
       ObjFunction *function = (ObjFunction*)object;
       freeChunk(&function->chunk);
@@ -41,6 +47,9 @@ static void freeObject(Obj* object) {
       FREE(ObjString, object); // Free up the memory allocated for "metadata".
       break;
     }
+    case OBJ_UPVALUE:
+      FREE(ObjUpvalue, object);
+      break;
   }
 }
 
