@@ -15,9 +15,6 @@ If you want to try out the bytecode vm executable, there are no pre-built binari
 
 ## Build
 1. Clone the repository:
-```
-git clone https://github.com/pleskunov/clox.git
-```
 
 2. Enter the project's directory and run a configuration script shipped with the code:
 ```
@@ -34,8 +31,7 @@ That's all it takes. Now, executable can be found in the *build* directory creat
 ## Lox syntax
 This is in early stage, so only limited number of features are implemented. This section will be updated.
 
-For now, only *numbers* (integers and doubles), some *unary* (-, !) and *binary* operators (+, -, *, /, >, >=, <, <=, ==), 
-booleans (true, false), *nil* and *"strings"* are supported.
+For now, only **numbers** (integers and doubles), some **unary** (-, !) and **binary** operators (+, -, *, /, >, >=, <, <=, ==), **booleans** (true, false), **nil** and **"strings"** are supported.
 
 ## Possible problems
 1. If the version of cmake installed on your system is < 3.26, but > 3.22, you can safely "downgrade" the required version in the cmake file.
